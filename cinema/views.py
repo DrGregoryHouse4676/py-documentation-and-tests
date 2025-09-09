@@ -1,6 +1,8 @@
 from datetime import datetime
 
 from django.db.models import F, Count
+from django.template.context_processors import request
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework import viewsets, mixins, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
@@ -127,6 +129,32 @@ class MovieViewSet(
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="title",
+                description="Substring search by title (case-insensitive). Example: `title=ring`.",
+                required=False,
+                type=str,
+            ),
+            OpenApiParameter(
+                name="genres",
+                description="A comma-separated list of genre IDs. Selects movies that have **all** of these genres.",
+                required=False,
+                type=int,
+            ),
+            OpenApiParameter(
+                name="actors",
+                description="A comma-separated list of actor IDs. Selects movies containing **all** of these actors.",
+                required=False,
+                type=int,
+            ),
+        ]
+    )
+    def list(self, request, *args, **kwargs):
+        """List of movies with the ability to filter by title, genres, and actors."""
+        return super().list(request, *args, **kwargs)
+
 
 class MovieSessionViewSet(viewsets.ModelViewSet):
     queryset = (
@@ -167,6 +195,26 @@ class MovieSessionViewSet(viewsets.ModelViewSet):
 
         return MovieSessionSerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="date",
+                description="A date in the format YYYY-MM-DD. Returns sessions for this date.",
+                required=False,
+                type=str,
+            ),
+            OpenApiParameter(
+
+                name="movie",
+                description="Movie ID for session filtering.",
+                required=False,
+                type=int,
+            )
+        ]
+    )
+    def list(self, request, *args, **kwargs):
+        """List of movie shows. Filter by date and movie."""
+        return super().list(request, *args, **kwargs)
 
 class OrderPagination(PageNumberPagination):
     page_size = 10
