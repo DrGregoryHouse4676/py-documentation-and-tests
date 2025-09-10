@@ -157,7 +157,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Cinema API",
-    "DESCRIPTION": "Chek cinema info",
+    "DESCRIPTION": "Check cinema info",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_SETTINGS": {
