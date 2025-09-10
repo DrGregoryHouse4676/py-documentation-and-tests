@@ -4,6 +4,7 @@ from django.db.models import F, Count
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
@@ -61,6 +62,8 @@ class MovieViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     queryset = Movie.objects.prefetch_related("genres", "actors")
@@ -68,8 +71,11 @@ class MovieViewSet(
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
     @staticmethod
-    def _params_to_ints(qs: str) -> list[int]:
-        return [int(x.strip()) for x in qs.split(",") if x.strip()]
+    def _csv_to_ints(qs: str, param_name: str) -> list[int]:
+        try:
+            return [int(x.strip()) for x in qs.split(",") if x.strip()]
+        except ValueError:
+            raise ParseError(f"Invalid '{param_name}' parameter. Use comma-separated integers.")
 
     def get_queryset(self):
         queryset = Movie.objects.all().prefetch_related("genres", "actors")
@@ -81,13 +87,13 @@ class MovieViewSet(
 
         genres = params.get("genres")
         if genres:
-            ids = self._params_to_ints(genres)
+            ids = self._csv_to_ints(genres, "genres")
             for gid in ids:
                 queryset = queryset.filter(genres__id=gid)
 
         actors = params.get("actors")
         if actors:
-            ids = self._params_to_ints(actors)
+            ids = self._csv_to_ints(actors, "actors")
             for aid in ids:
                 queryset = queryset.filter(actors__id=aid)
 
@@ -120,19 +126,19 @@ class MovieViewSet(
         parameters=[
             OpenApiParameter(
                 name="title",
-                description="Substring search by title (case-insensitive).",
+                description="Substring search by title (case-insensitive). Example: `title=ring`.",
                 required=False,
                 type=OpenApiTypes.STR,
             ),
             OpenApiParameter(
                 name="genres",
-                description="Comma-separated genre IDs. Selects movies that have all of these genres.",
+                description="Comma-separated genre IDs. Selects movies that have all of these genres. Example: `1,3`.",
                 required=False,
                 type=OpenApiTypes.STR,
             ),
             OpenApiParameter(
                 name="actors",
-                description="Comma-separated actor IDs. Selects movies containing all of these actors.",
+                description="Comma-separated actor IDs. Selects movies containing all of these actors. Example: `2,5`.",
                 required=False,
                 type=OpenApiTypes.STR,
             ),
@@ -157,14 +163,24 @@ class MovieSessionViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
     def get_queryset(self):
-        date = self.request.query_params.get("date")
+        date_str = self.request.query_params.get("date")
         movie_id_str = self.request.query_params.get("movie")
         queryset = self.queryset
-        if date:
-            date = datetime.strptime(date, "%Y-%m-%d").date()
+
+        if date_str:
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise ParseError("Invalid 'date' format. Expected YYYY-MM-DD.")
             queryset = queryset.filter(show_time__date=date)
+
         if movie_id_str:
-            queryset = queryset.filter(movie_id=int(movie_id_str))
+            try:
+                movie_id = int(movie_id_str)
+            except ValueError:
+                raise ParseError("Invalid 'movie' parameter. Expected integer.")
+            queryset = queryset.filter(movie_id=movie_id)
+
         return queryset
 
     def get_serializer_class(self):
